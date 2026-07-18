@@ -6,7 +6,17 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.7 REQUIRED COMPONENTS Core Quick Network Sql)
+find_package(Qt6 6.7 REQUIRED COMPONENTS
+    Core
+    Gui
+    Network
+    Positioning
+    Quick
+    Sql
+    WebChannel
+    WebEngineCore
+    WebEngineQuick
+)
 
 qt_standard_project_setup(REQUIRES 6.7)
 
@@ -91,6 +101,41 @@ add_library(FantarealCore STATIC
     cpp/database/legacystatejournaladapter.cpp
 )
 
+add_library(FantarealExtensionCore STATIC
+    cpp/extensions/extensionmanifest.h
+    cpp/extensions/extensionmanifest.cpp
+    cpp/extensions/extensionregistry.h
+    cpp/extensions/extensionregistry.cpp
+    cpp/extensions/extensioninstaller.h
+    cpp/extensions/extensioninstaller.cpp
+    cpp/extensions/extensionmanager.h
+    cpp/extensions/extensionmanager.cpp
+    cpp/extensions/githubextensionsource.h
+    cpp/extensions/githubextensionsource.cpp
+    cpp/extensions/pythonruntimemanager.h
+    cpp/extensions/pythonruntimemanager.cpp
+    cpp/extensions/extensionservicehost.h
+    cpp/extensions/extensionservicehost.cpp
+    cpp/extensions/extensionartifactrouter.h
+    cpp/extensions/extensionartifactrouter.cpp
+)
+
+add_library(FantarealExtensionWebHost STATIC
+    cpp/extensions/extensionwebhost.h
+    cpp/extensions/extensionwebhost.cpp
+)
+
+target_include_directories(FantarealExtensionCore PUBLIC cpp cpp/extensions)
+target_link_libraries(FantarealExtensionCore
+    PUBLIC Qt6::Core
+    PRIVATE Qt6::CorePrivate Qt6::Network
+)
+
+target_include_directories(FantarealExtensionWebHost PUBLIC cpp cpp/extensions)
+target_link_libraries(FantarealExtensionWebHost
+    PUBLIC FantarealExtensionCore Qt6::Core
+    PRIVATE Qt6::WebChannel Qt6::WebEngineCore
+)
 set(FANTAREAL_CARD_AUTHORING_PROMPT_FILES
     resources/card_authoring/prompts/human_character_system/candidate_rules.md
     resources/card_authoring/prompts/human_character_system/case_reference.md
@@ -153,14 +198,20 @@ qt_add_qml_module(FantarealHuskarUI
         qml/pages/RoutesPage.qml
         qml/pages/WorkshopPage.qml
         qml/pages/PluginsPage.qml
+        qml/components/extensions/ExtensionWebDialog.qml
 )
 
 target_include_directories(FantarealHuskarUI PRIVATE cpp)
 
 target_link_libraries(FantarealHuskarUI PRIVATE
     FantarealCore
+    FantarealExtensionCore
+    FantarealExtensionWebHost
     Qt6::Quick
     Qt6::Network
+    Qt6::Positioning
+    Qt6::WebChannel
+    Qt6::WebEngineQuick
     ${FANTAREAL_HUSKARUI_BASIC_TARGET}
     $<$<BOOL:${BUILD_HUSKARUI_STATIC_LIBRARY}>:HuskarUIImplPlugin>
     $<$<BOOL:${BUILD_HUSKARUI_STATIC_LIBRARY}>:HuskarUIBasicPlugin>
@@ -194,6 +245,24 @@ function(fantareal_add_core_test test_name test_source)
     fantareal_add_bridge_test(${test_name})
 endfunction()
 
+function(fantareal_add_extension_test test_name test_source)
+    add_executable(${test_name} ${test_source})
+    target_link_libraries(${test_name} PRIVATE FantarealExtensionCore Qt6::CorePrivate Qt6::Network)
+    fantareal_add_bridge_test(${test_name})
+endfunction()
+
+function(fantareal_add_extension_web_test test_name test_source)
+    add_executable(${test_name} ${test_source})
+    target_link_libraries(${test_name} PRIVATE
+        FantarealExtensionWebHost
+        FantarealCore
+        Qt6::Gui
+        Qt6::WebChannel
+        Qt6::WebEngineCore
+    )
+    fantareal_add_bridge_test(${test_name})
+endfunction()
+
 fantareal_add_core_test(FantarealBridgeSettingsSaveTest tests/settings_save_test.cpp)
 fantareal_add_core_test(FantarealBridgeChatSendTest tests/chat_send_test.cpp)
 fantareal_add_core_test(FantarealBridgeChatGenerateTest tests/chat_generate_test.cpp)
@@ -215,3 +284,6 @@ fantareal_add_core_test(FantarealDatabaseWorkerChatTest tests/database_worker_ch
 fantareal_add_core_test(FantarealBridgeDatabaseTest tests/database_bridge_test.cpp)
 fantareal_add_core_test(FantarealCardAuthoringServiceTest tests/card_authoring_service_test.cpp)
 fantareal_add_core_test(FantarealBridgeCardAuthoringTest tests/card_authoring_bridge_test.cpp)
+fantareal_add_extension_test(FantarealExtensionCoreTest tests/extension_core_test.cpp)
+fantareal_add_extension_test(FantarealExtensionServiceHostTest tests/extension_service_host_test.cpp)
+fantareal_add_extension_web_test(FantarealExtensionWebHostTest tests/extension_web_host_test.cpp)

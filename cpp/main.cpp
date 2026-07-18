@@ -1,4 +1,6 @@
 #include "fantarealbridge.h"
+#include "extensions/extensionmanager.h"
+#include "extensions/extensionwebhost.h"
 
 #include <QGuiApplication>
 #include <QDateTime>
@@ -390,10 +392,13 @@ int runCardAuthoringHeadlessAcceptance(FantarealBridge& bridge) {
 }
 
 int main(int argc, char* argv[]) {
+    QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 #ifndef Q_OS_MAC
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
 #endif
     QQuickWindow::setDefaultAlphaBuffer(true);
+
+    ExtensionWebHost::registerUrlScheme();
 
     qInstallMessageHandler(runtimeMessageHandler);
 
@@ -424,7 +429,14 @@ int main(int argc, char* argv[]) {
     }
     HusApp::initialize(&engine);
 
+    ExtensionManager extensionManager;
+    ExtensionWebHost extensionWebHost(extensionManager.rootPath());
+    extensionWebHost.setArtifactImporters(
+        [&bridge](const QString& path) { return bridge.importRoleCardFile(path); },
+        [&bridge](const QString& path) { return bridge.importWorldbookFile(path); });
     qmlRegisterSingletonInstance("Fantareal", 1, 0, "FantarealBridge", &bridge);
+    qmlRegisterSingletonInstance("Fantareal", 1, 0, "ExtensionManager", &extensionManager);
+    qmlRegisterSingletonInstance("Fantareal", 1, 0, "ExtensionWebHost", &extensionWebHost);
     engine.loadFromModule("Fantareal", "FantarealApp");
 
     if (engine.rootObjects().isEmpty()) {
